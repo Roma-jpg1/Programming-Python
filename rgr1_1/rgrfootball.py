@@ -176,6 +176,7 @@ while True:
 
                         print(f'Список успешно записан в файл {file_path}')
                         break
+
                 else:
                     layoutI01 = [
                         [sg.Image(filename=r"C:\Users\Roman P\Desktop\im33.png")],
@@ -189,6 +190,7 @@ while True:
                             break
 
                     windowI01.close()
+        window4.close()
     elif event =='Эмуляция турнира':
         if len(ish)>0:
 
@@ -327,4 +329,3 @@ while True:
 
 
 window.close()
-print(ttem)
