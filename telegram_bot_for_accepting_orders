@@ -1,0 +1,185 @@
+import telebot
+from telebot import types
+import logging
+import os
+
+# Настройка логирования / Logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# Загрузка токена и ID чата из переменных окружения / Load from environment variables
+API_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Замените на свой токен / Replace with your token
+TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID")  # Замените на ID группы / Replace with group ID
+bot = telebot.TeleBot(API_TOKEN)
+
+# Словарь для хранения данных пользователей / User data storage
+user_data = {}
+
+def is_user_data_valid(chat_id):
+    """Проверяет наличие данных пользователя / Checks if user data exists."""
+    return chat_id in user_data
+
+def reset_user_data(chat_id):
+    """Сбрасывает данные пользователя / Resets user data."""
+    if is_user_data_valid(chat_id):
+        user_data[chat_id] = {
+            'photo_id': None, 
+            'text': None, 
+            'last_bot_message_id': None
+        }
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    """Обработчик команды /start / Start command handler."""
+    try:
+        # Создание клавиатуры / Create reply keyboard
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        btn_order = types.KeyboardButton("Создать заказ")
+        btn_help = types.KeyboardButton("Помощь")
+        btn_prices = types.KeyboardButton("Стоимость")
+        btn_time = types.KeyboardButton("Сроки выполнения")
+        markup.add(btn_order)
+        markup.row(btn_help, btn_prices)
+        markup.add(btn_time)
+
+        # Приветственное сообщение / Welcome message
+        msg = bot.send_message(
+            message.chat.id,
+            "Добро пожаловать! Отправьте фото и описание для заказа.",
+            reply_markup=markup
+        )
+        # Инициализация данных пользователя / Initialize user data
+        user_data[message.chat.id] = {
+            'photo_id': None, 
+            'text': None, 
+            'last_bot_message_id': msg.message_id
+        }
+    except Exception as e:
+        logging.error(f"Ошибка в send_welcome: {e}")
+        bot.send_message(message.chat.id, "Ошибка. Попробуйте снова.")
+
+@bot.message_handler(func=lambda message: message.text == "Помощь")
+def handle_help(message):
+    """Показывает инструкции / Shows help."""
+    try:
+        if is_user_data_valid(message.chat.id):
+            msg = bot.send_message(message.chat.id, "Отправьте фото и описание заказа.")
+            user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+    except Exception as e:
+        logging.error(f"Ошибка в handle_help: {e}")
+        bot.send_message(message.chat.id, "Ошибка. Попробуйте снова.")
+
+@bot.message_handler(func=lambda message: message.text == "Стоимость")
+def handle_prices(message):
+    """Показывает цены / Displays prices."""
+    try:
+        if is_user_data_valid(message.chat.id):
+            msg = bot.send_message(
+                message.chat.id,
+                "Стандартные тарифы:\nУслуга 1: 500 руб.\nУслуга 2: 1000 руб."
+            )
+            user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+    except Exception as e:
+        logging.error(f"Ошибка в handle_prices: {e}")
+        bot.send_message(message.chat.id, "Ошибка. Попробуйте снова.")
+
+@bot.message_handler(func=lambda message: message.text == "Сроки выполнения")
+def handle_delivery_time(message):
+    """Показывает сроки выполнения / Displays processing time."""
+    try:
+        if is_user_data_valid(message.chat.id):
+            msg = bot.send_message(
+                message.chat.id,
+                "Сроки:\nУслуга 1: 1-2 дня\nУслуга 2: 3-5 дней"
+            )
+            user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+    except Exception as e:
+        logging.error(f"Ошибка в handle_delivery_time: {e}")
+        bot.send_message(message.chat.id, "Ошибка. Попробуйте снова.")
+
+@bot.message_handler(func=lambda message: message.text == "Создать заказ")
+def handle_create_order(message):
+    """Начинает процесс создания заказа / Starts order creation."""
+    try:
+        if is_user_data_valid(message.chat.id):
+            msg = bot.send_message(message.chat.id, "Отправьте фото товара/услуги.")
+            user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+    except Exception as e:
+        logging.error(f"Ошибка в handle_create_order: {e}")
+        bot.send_message(message.chat.id, "Ошибка. Попробуйте снова.")
+
+@bot.message_handler(content_types=['photo'])
+def handle_photo(message):
+    """Сохраняет фото заказа / Saves order photo."""
+    try:
+        if is_user_data_valid(message.chat.id):
+            user_data[message.chat.id]['photo_id'] = message.photo[-1].file_id
+            msg = bot.send_message(message.chat.id, "Фото получено! Добавьте описание.")
+            user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+    except Exception as e:
+        logging.error(f"Ошибка в handle_photo: {e}")
+        bot.send_message(message.chat.id, "Ошибка. Попробуйте снова.")
+
+@bot.message_handler(content_types=['text'])
+def handle_text(message):
+    """Сохраняет описание заказа / Saves order description."""
+    try:
+        if is_user_data_valid(message.chat.id):
+            if user_data[message.chat.id]['photo_id']:
+                user_data[message.chat.id]['text'] = message.text
+                msg = bot.send_message(
+                    message.chat.id, 
+                    "Описание сохранено! Подтвердите отправку командой /send."
+                )
+                user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+            else:
+                msg = bot.send_message(message.chat.id, "Сначала отправьте фото!")
+                user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+    except Exception as e:
+        logging.error(f"Ошибка в handle_text: {e}")
+        bot.send_message(message.chat.id, "Ошибка. Попробуйте снова.")
+
+@bot.message_handler(commands=['send'])
+def handle_send_command(message):
+    """Отправляет заказ в группу / Sends order to the group."""
+    try:
+        if (
+            is_user_data_valid(message.chat.id) 
+            and user_data[message.chat.id]['photo_id'] 
+            and user_data[message.chat.id]['text']
+        ):
+            # Отправка фото и описания / Send photo and description
+            photo_msg = bot.send_photo(TARGET_CHAT_ID, user_data[message.chat.id]['photo_id'])
+            
+            # Создание кнопки "Принять заказ" / Add "Accept order" button
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton(
+                text="Принять заказ", 
+                callback_data="accept_order"
+            ))
+            
+            # Отправка описания с кнопкой / Send description with button
+            bot.send_message(
+                TARGET_CHAT_ID, 
+                user_data[message.chat.id]['text'], 
+                reply_markup=markup
+            )
+            
+            reset_user_data(message.chat.id)  # Сброс данных / Reset data
+            bot.send_message(message.chat.id, "Заказ успешно отправлен!")
+        else:
+            msg = bot.send_message(message.chat.id, "Сначала отправьте фото и описание!")
+            user_data[message.chat.id]['last_bot_message_id'] = msg.message_id
+    except Exception as e:
+        logging.error(f"Ошибка в handle_send_command: {e}")
+        bot.send_message(message.chat.id, "Ошибка при отправке. Попробуйте снова.")
+
+if __name__ == "__main__":
+    # Запуск бота с обработкой ошибок / Start bot with error handling
+    while True:
+        try:
+            bot.polling(none_stop=True)
+        except Exception as e:
+            logging.error(f"Ошибка в основном цикле: {e}")
